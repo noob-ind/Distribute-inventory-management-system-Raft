@@ -1,0 +1,19 @@
+# Python cache and build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Virtual environment
+venv/
+.env/
+
+# gRPC generated binaries
+*.pb2.py
+*.pb2_grpc.py
+
+# IDE files
+.idea/
+.vscode/
+.DS_Store

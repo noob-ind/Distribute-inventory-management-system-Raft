@@ -1,0 +1,27 @@
+syntax = "proto3";
+package distinct;
+
+service AuthService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (StatusReply);
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string status = 1;   // "OK" or "ERROR"
+  string token = 2;    // present if status == "OK"
+  string message = 3;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message StatusReply {
+  string status = 1;
+  string message = 2;
+}

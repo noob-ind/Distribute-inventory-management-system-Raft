@@ -1,0 +1,17 @@
+syntax = "proto3";
+package distinct;
+
+service LLMService {
+  rpc GetLLMAnswer(AskRequest) returns (AskResponse);
+}
+
+message AskRequest {
+  string request_id = 1;
+  string query = 2;
+  string context = 3;
+}
+
+message AskResponse {
+  string request_id = 1;
+  string answer = 2;
+}
