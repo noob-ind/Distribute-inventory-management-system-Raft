@@ -15,6 +15,7 @@ def show_inventory(inv_stub, token):
     return resp.items
 
 
+session_actions = []
 def interactive_client():
     # Connect to the App Server
     with grpc.insecure_channel("localhost:50051") as channel:
@@ -23,7 +24,7 @@ def interactive_client():
 
         # --- Login phase ---
         print("=== Login ===")
-        username = input("Enter username (e.g., Ankit): ").strip()
+        username = input("Enter username (e.g., Ankit/manager1): ").strip()
         password = getpass.getpass("Enter password: ").strip()
 
         login_resp = auth.Login(auth_pb2.LoginRequest(username=username, password=password))
@@ -33,62 +34,149 @@ def interactive_client():
         token = login_resp.token
         print(f"Welcome, {username}!\n")
 
+        # --- Determine role from server message ---
+        if "manager" in login_resp.message.lower():
+            role = "manager"
+        else:
+            role = "customer"
+
         # Keep track of purchased items
         purchase_summary = {}
 
         # --- Main loop ---
         while True:
-            items = show_inventory(inv, token)
-
             print("\nOptions:")
-            print("1. Buy an item")
-            print("2. Ask LLM for restock suggestion")
-            print("3. Logout")
 
-            choice = input("Choose an option (1–3): ").strip()
+            if role == "manager":
+                print("1. Add stock")
+                print("2. View inventory")
+                print("3. Logout")
+                choice = input("Choose an option (1–3): ").strip()
 
-            if choice == "1":
-                sku_choice = input("Enter SKU (e.g., SKU-APPLE): ").strip().upper()
-                qty_str = input("Enter quantity to order: ").strip()
-                if not qty_str.isdigit() or int(qty_str) <= 0:
-                    print("Invalid quantity.")
-                    continue
-                qty = int(qty_str)
+                if choice == "1":
+                    sku_choice = input("Enter SKU (e.g., SKU-APPLE): ").strip().upper()
+                    qty_str = input("Enter quantity to add: ").strip()
+                    if not qty_str.isdigit() or int(qty_str) <= 0:
+                        print("Invalid quantity.")
+                        continue
+                    qty = int(qty_str)
 
-                post_resp = inv.Post(
-                    inventory_pb2.PostRequest(token=token, type="ORDER", sku=sku_choice, qty=qty)
-                )
-                print(f"{post_resp.status}: {post_resp.message}")
+                    # Add stock
+                    post_resp = inv.Post(
+                        inventory_pb2.PostRequest(
+                            token=token,
+                            type="ADD_STOCK",
+                            sku=sku_choice,
+                            qty=qty
+                        )
+                    )
+                    print(f"{post_resp.status}: {post_resp.message}")
 
-                # Record successful purchase
-                if post_resp.status == "OK":
-                    purchase_summary[sku_choice] = purchase_summary.get(sku_choice, 0) + qty
+                    # ✅ Auto-refresh inventory after adding stock
+                    show_inventory(inv, token)
+                    if post_resp.status == "OK":
+                        session_actions.append(f"Added {qty} units to {sku_choice}")
 
-                # Refresh dynamic stock
-                show_inventory(inv, token)
 
-            elif choice == "2":
-                sku_choice = input("Enter SKU to ask LLM about: ").strip().upper()
-                llm_resp = inv.Post(
-                    inventory_pb2.PostRequest(token=token, type="ASK_LLM", sku=sku_choice, qty=0)
-                )
-                print(f"LLM says: {llm_resp.message}")
 
-            elif choice == "3":
-                logout_resp = auth.Logout(auth_pb2.LogoutRequest(token=token))
-                print(f"{logout_resp.status}: {logout_resp.message}")
+                elif choice == "2":
+                    # ✅ Show inventory only once (no duplicate)
+                    show_inventory(inv, token)
 
-                # Show purchase summary before exit
-                if purchase_summary:
-                    print("\n=== Purchase Summary ===")
-                    for sku, qty in purchase_summary.items():
-                        print(f"{sku}: {qty} item(s) purchased")
+
+                elif choice == "3":
+
+                    logout_resp = auth.Logout(auth_pb2.LogoutRequest(token=token))
+
+                    print(f"{logout_resp.status}: {logout_resp.message}")
+
+                    # ✅ Print session summary
+
+                    if session_actions:
+
+                        print("\n=== Session Summary ===")
+
+                        for i, act in enumerate(session_actions, start=1):
+                            print(f"{i}. {act}")
+
+                    else:
+
+                        print("\nNo actions performed this session.")
+
+                    break
+
+
                 else:
-                    print("\nNo items purchased this session.")
-                break
+                    print("Invalid option, try again.")
 
-            else:
-                print("Invalid option, try again.")
+            else:  # Customer menu
+                print("1. Buy an item")
+                print("2. Ask LLM about item availability")
+                print("3. Logout")
+                choice = input("Choose an option (1–3): ").strip()
+
+                if choice == "1":
+                    sku_choice = input("Enter SKU (e.g., SKU-APPLE): ").strip().upper()
+                    qty_str = input("Enter quantity to order: ").strip()
+                    if not qty_str.isdigit() or int(qty_str) <= 0:
+                        print("Invalid quantity.")
+                        continue
+                    qty = int(qty_str)
+
+                    # Place order
+                    post_resp = inv.Post(
+                        inventory_pb2.PostRequest(
+                            token=token,
+                            type="ORDER",
+                            sku=sku_choice,
+                            qty=qty
+                        )
+                    )
+                    print(f"{post_resp.status}: {post_resp.message}")
+
+                    # ✅ Auto-refresh inventory after purchase :todo
+                    show_inventory(inv, token)
+                    if post_resp.status == "OK":
+                        session_actions.append(f"Bought {qty} of {sku_choice}")
+
+
+                elif choice == "2":
+                    sku_choice = input("Enter SKU to check availability: ").strip().upper()
+                    llm_resp = inv.Post(
+                        inventory_pb2.PostRequest(
+                            token=token,
+                            type="ASK_LLM",
+                            sku=sku_choice,
+                            qty=0
+                        )
+                    )
+                    print(f"LLM says: {llm_resp.message}")
+
+
+                elif choice == "3":
+
+                    logout_resp = auth.Logout(auth_pb2.LogoutRequest(token=token))
+
+                    print(f"{logout_resp.status}: {logout_resp.message}")
+
+                    # ✅ Print session summary
+
+                    if session_actions:
+
+                        print("\n=== Session Summary ===")
+
+                        for i, act in enumerate(session_actions, start=1):
+                            print(f"{i}. {act}")
+
+                    else:
+
+                        print("\nNo actions performed this session.")
+
+                    break
+
+
+                else:
+                    print("Invalid option, try again.")
 
 
 def main():

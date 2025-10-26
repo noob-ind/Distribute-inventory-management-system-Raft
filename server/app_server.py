@@ -10,7 +10,12 @@ from llm_server import llm_pb2, llm_pb2_grpc
 
 
 # In-memory stores (Milestone 1 only; will change for Raft in Milestone 2)
-USERS = {"alice": "password", "bob": "password" , "Ankit" : "admin"}
+USERS = {
+    "ankit": {"password": "admin", "role": "customer"},
+    "alice": {"password": "password", "role": "customer"},
+    "manager1": {"password": "admin", "role": "manager"},
+}
+
 SESSIONS = {}  # token -> username
 INVENTORY = {
     "SKU-APPLE": {"name": "Apple", "stock": 10},
@@ -20,26 +25,37 @@ INVENTORY = {
 
 
 def require_auth(token: str):
-    """Helper: verify valid session token."""
     if not token or token not in SESSIONS:
-        return False, None
-    return True, SESSIONS[token]
+        return False, None, None
+
+    sess = SESSIONS[token]
+
+    # Handle both dict-style and string sessions gracefully
+    if isinstance(sess, dict):
+        return True, sess.get("username"), sess.get("role")
+    else:
+        # backward compatibility if you ever stored username as string earlier
+        return True, sess, "customer"
+
+
 
 
 class AuthService(auth_pb2_grpc.AuthServiceServicer):
     """Simple login/logout auth service."""
+
     def Login(self, request, context):
         username = request.username.strip()
         password = request.password
-        if USERS.get(username) == password:
+        user = USERS.get(username)
+        if user and user["password"] == password:
             token = str(uuid.uuid4())
-            SESSIONS[token] = username
+            SESSIONS[token] = {"username": username, "role": user["role"]}
             return auth_pb2.LoginResponse(
-                status="OK", token=token, message=f"Welcome {username}!"
+                status="OK",
+                token=token,
+                message=f"Welcome {username}! Logged in as {user['role']}."
             )
-        return auth_pb2.LoginResponse(
-            status="ERROR", token="", message="Invalid username or password"
-        )
+        return auth_pb2.LoginResponse(status="ERROR", token="", message="Invalid username or password")
 
     def Logout(self, request, context):
         token = request.token
@@ -55,7 +71,8 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
         self.llm_channel_target = llm_channel_target
 
     def Post(self, request, context):
-        ok, user = require_auth(request.token)
+        # Updated require_auth() now returns (ok, user, role)
+        ok, user, role = require_auth(request.token)
         if not ok:
             return auth_pb2.StatusReply(status="ERROR", message="Unauthorized")
 
@@ -66,6 +83,7 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
         if sku not in INVENTORY:
             return auth_pb2.StatusReply(status="ERROR", message=f"Unknown SKU {sku}")
 
+        # --- Customer places an order ---
         if typ == "ORDER":
             if INVENTORY[sku]["stock"] < qty:
                 return auth_pb2.StatusReply(
@@ -77,15 +95,21 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
                 message=f"Order placed by {user} for {qty} of {INVENTORY[sku]['name']}",
             )
 
+        # --- Manager adds stock (restricted) ---
         elif typ == "ADD_STOCK":
+            if role != "manager":
+                return auth_pb2.StatusReply(
+                    status="ERROR",
+                    message="Permission denied: Only inventory managers can add stock.",
+                )
             INVENTORY[sku]["stock"] += qty
             return auth_pb2.StatusReply(
                 status="OK",
-                message=f"Added {qty} units to {INVENTORY[sku]['name']}",
+                message=f"Manager {user} added {qty} units to {INVENTORY[sku]['name']}",
             )
 
+        # --- LLM availability check (all users allowed) ---
         elif typ == "ASK_LLM":
-            # Connect to LLM server for reorder suggestion
             with grpc.insecure_channel(self.llm_channel_target) as ch:
                 stub = llm_pb2_grpc.LLMServiceStub(ch)
                 req_id = str(uuid.uuid4())
@@ -105,7 +129,8 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
             )
 
     def Get(self, request, context):
-        ok, user = require_auth(request.token)
+        ok, user, role = require_auth(request.token)
+
         if not ok:
             return inventory_pb2.GetResponse(
                 status="ERROR", items=[], message="Unauthorized"
