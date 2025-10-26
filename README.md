@@ -1,1 +1,1 @@
-Distribute inventory management system
+Distribute inventory management system Milestone-1
