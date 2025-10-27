@@ -2,7 +2,7 @@ import time
 from concurrent import futures
 import grpc
 
-# ✅ Correct package-relative imports
+#:todo important for important for importing
 from . import llm_pb2 , llm_pb2_grpc
 
 
@@ -11,10 +11,10 @@ class LLMService(llm_pb2_grpc.LLMServiceServicer):
         """Mock 'customer-facing' response based on product availability."""
         q = (request.query or "").lower()
 
-        # Default polite response
+
         answer = "Thank you for checking! Please specify the product name."
 
-        # Extract stock number if present
+
         stock = None
         if "current stock=" in q:
             try:
@@ -22,7 +22,7 @@ class LLMService(llm_pb2_grpc.LLMServiceServicer):
             except Exception:
                 pass
 
-        # Respond like a customer-facing assistant
+
         if stock is not None:
             if stock == 0:
                 answer = "Sorry, that item is currently out of stock."

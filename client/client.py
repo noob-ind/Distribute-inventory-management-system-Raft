@@ -22,7 +22,7 @@ def interactive_client():
         auth = auth_pb2_grpc.AuthServiceStub(channel)
         inv = inventory_pb2_grpc.InventoryServiceStub(channel)
 
-        # --- Login phase ---
+
         print("=== Login ===")
         username = input("Enter username (e.g., Ankit/manager1): ").strip()
         password = getpass.getpass("Enter password: ").strip()
@@ -34,13 +34,13 @@ def interactive_client():
         token = login_resp.token
         print(f"Welcome, {username}!\n")
 
-        # --- Determine role from server message ---
+
         if "manager" in login_resp.message.lower():
             role = "manager"
         else:
             role = "customer"
 
-        # Keep track of purchased items
+
         purchase_summary = {}
 
         # --- Main loop ---
@@ -72,7 +72,7 @@ def interactive_client():
                     )
                     print(f"{post_resp.status}: {post_resp.message}")
 
-                    # ✅ Auto-refresh inventory after adding stock
+
                     show_inventory(inv, token)
                     if post_resp.status == "OK":
                         session_actions.append(f"Added {qty} units to {sku_choice}")
@@ -80,7 +80,7 @@ def interactive_client():
 
 
                 elif choice == "2":
-                    # ✅ Show inventory only once (no duplicate)
+
                     show_inventory(inv, token)
 
 
@@ -90,7 +90,7 @@ def interactive_client():
 
                     print(f"{logout_resp.status}: {logout_resp.message}")
 
-                    # ✅ Print session summary
+
 
                     if session_actions:
 
@@ -134,7 +134,7 @@ def interactive_client():
                     )
                     print(f"{post_resp.status}: {post_resp.message}")
 
-                    # ✅ Auto-refresh inventory after purchase :todo
+                    # :todo
                     show_inventory(inv, token)
                     if post_resp.status == "OK":
                         session_actions.append(f"Bought {qty} of {sku_choice}")
@@ -159,7 +159,7 @@ def interactive_client():
 
                     print(f"{logout_resp.status}: {logout_resp.message}")
 
-                    # ✅ Print session summary
+
 
                     if session_actions:
 

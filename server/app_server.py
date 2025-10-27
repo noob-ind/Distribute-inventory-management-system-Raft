@@ -4,19 +4,19 @@ import uuid
 from concurrent import futures
 import grpc
 
-# Generated stubs (from scripts/gen_protos.sh)
+#:todo important for import
 from server import auth_pb2, auth_pb2_grpc, inventory_pb2, inventory_pb2_grpc
 from llm_server import llm_pb2, llm_pb2_grpc
 
 
-# In-memory stores (Milestone 1 only; will change for Raft in Milestone 2)
+#:todo we will add multiple clients as a part of milestone2
 USERS = {
     "ankit": {"password": "admin", "role": "customer"},
     "alice": {"password": "password", "role": "customer"},
     "manager1": {"password": "admin", "role": "manager"},
 }
 
-SESSIONS = {}  # token -> username
+SESSIONS = {}
 INVENTORY = {
     "SKU-APPLE": {"name": "Apple", "stock": 10},
     "SKU-MILK": {"name": "Milk", "stock": 5},
@@ -30,18 +30,18 @@ def require_auth(token: str):
 
     sess = SESSIONS[token]
 
-    # Handle both dict-style and string sessions gracefully
+
     if isinstance(sess, dict):
         return True, sess.get("username"), sess.get("role")
     else:
-        # backward compatibility if you ever stored username as string earlier
+
         return True, sess, "customer"
 
 
 
 
 class AuthService(auth_pb2_grpc.AuthServiceServicer):
-    """Simple login/logout auth service."""
+
 
     def Login(self, request, context):
         username = request.username.strip()
@@ -66,12 +66,12 @@ class AuthService(auth_pb2_grpc.AuthServiceServicer):
 
 
 class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
-    """Handles inventory management and LLM interaction."""
+
     def __init__(self, llm_channel_target="localhost:50052"):
         self.llm_channel_target = llm_channel_target
 
     def Post(self, request, context):
-        # Updated require_auth() now returns (ok, user, role)
+
         ok, user, role = require_auth(request.token)
         if not ok:
             return auth_pb2.StatusReply(status="ERROR", message="Unauthorized")
@@ -83,7 +83,7 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
         if sku not in INVENTORY:
             return auth_pb2.StatusReply(status="ERROR", message=f"Unknown SKU {sku}")
 
-        # --- Customer places an order ---
+
         if typ == "ORDER":
             if INVENTORY[sku]["stock"] < qty:
                 return auth_pb2.StatusReply(
@@ -95,7 +95,7 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
                 message=f"Order placed by {user} for {qty} of {INVENTORY[sku]['name']}",
             )
 
-        # --- Manager adds stock (restricted) ---
+
         elif typ == "ADD_STOCK":
             if role != "manager":
                 return auth_pb2.StatusReply(
@@ -108,7 +108,7 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
                 message=f"Manager {user} added {qty} units to {INVENTORY[sku]['name']}",
             )
 
-        # --- LLM availability check (all users allowed) ---
+
         elif typ == "ASK_LLM":
             with grpc.insecure_channel(self.llm_channel_target) as ch:
                 stub = llm_pb2_grpc.LLMServiceStub(ch)
@@ -169,7 +169,7 @@ class InventoryService(inventory_pb2_grpc.InventoryServiceServicer):
 
 
 def serve():
-    """Start the App Server."""
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     auth_pb2_grpc.add_AuthServiceServicer_to_server(AuthService(), server)
     inventory_pb2_grpc.add_InventoryServiceServicer_to_server(InventoryService(), server)

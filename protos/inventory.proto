@@ -2,21 +2,21 @@ syntax = "proto3";
 package distinct;
 import "auth.proto";
 service InventoryService {
-  rpc Post(PostRequest) returns (StatusReply);   // ORDER, ADD_STOCK, ASK_LLM
-  rpc Get(GetRequest) returns (GetResponse);     // ALL or ONE
+  rpc Post(PostRequest) returns (StatusReply);
+  rpc Get(GetRequest) returns (GetResponse);
 }
 
 message PostRequest {
   string token = 1;
-  string type  = 2;  // "ORDER" | "ADD_STOCK" | "ASK_LLM"
+  string type  = 2;
   string sku   = 3;
   int32 qty    = 4;
 }
 
 message GetRequest {
   string token = 1;
-  string type  = 2;  // "ALL" | "ONE"
-  string sku   = 3;  // used when type == "ONE"
+  string type  = 2;
+  string sku   = 3;
 }
 
 message Item {

@@ -12,7 +12,7 @@ message LoginRequest {
 }
 
 message LoginResponse {
-  string status = 1;   // "OK" or "ERROR"
+  string status = 1;   // "OK" used as succcessfull login else "ERROR"
   string token = 2;    // present if status == "OK"
   string message = 3;
 }
